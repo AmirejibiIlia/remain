@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
@@ -6,7 +6,7 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from datetime import datetime, timedelta
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='templates', static_url_path='')
 
 # Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -98,6 +98,12 @@ class Task(db.Model):
             'sprintId': self.sprint_id,
             'createdAt': self.created_at.isoformat()
         }
+
+# ==================== SERVE FRONTEND ====================
+
+@app.route('/')
+def index():
+    return send_from_directory('templates', 'index.html')
 
 # ==================== AUTH ROUTES ====================
 
@@ -296,13 +302,6 @@ def health():
     return jsonify({
         'status': 'healthy',
         'database': 'connected'
-    }), 200
-
-@app.route('/', methods=['GET'])
-def home():
-    return jsonify({
-        'message': 'Sprint & Backlog API',
-        'version': '1.0.0'
     }), 200
 
 # ==================== DATABASE INIT ====================
