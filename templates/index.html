@@ -21,8 +21,10 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // API Configuration 
-        const API_URL = 'https://remain-production.up.railway.app/api';
+        // API Configuration - CHANGE THIS TO YOUR RAILWAY URL AFTER DEPLOYMENT
+        const API_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:5000/api'
+            : 'https://your-app.railway.app/api';
 
         // Auth Helper Functions
         const setToken = (token) => localStorage.setItem('token', token);
@@ -399,16 +401,25 @@
 
                                         <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
                                             {sprint.tasks.map(task => (
-                                                <div key={task.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                                                <div key={task.id} className="flex items-start gap-2 p-2 bg-gray-50 rounded">
                                                     <input
                                                         type="checkbox"
                                                         checked={task.completed}
                                                         onChange={() => toggleTaskCompletion(task.id, false, sprint.id)}
-                                                        className="w-5 h-5 text-indigo-600"
+                                                        className="w-5 h-5 text-indigo-600 mt-0.5"
                                                     />
-                                                    <span className={`flex-1 ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-                                                        {task.title}
-                                                    </span>
+                                                    <div className="flex-1">
+                                                        <span className={`block ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                                                            {task.title}
+                                                        </span>
+                                                        {(task.startDate || task.endDate) && (
+                                                            <span className="text-xs text-gray-500">
+                                                                {task.startDate && new Date(task.startDate).toLocaleDateString('ka-GE')}
+                                                                {task.startDate && task.endDate && ' - '}
+                                                                {task.endDate && new Date(task.endDate).toLocaleDateString('ka-GE')}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <span className="text-xs px-2 py-1 bg-gray-200 rounded">
                                                         {task.category}
                                                     </span>
@@ -468,7 +479,14 @@
                                                 {task.title}
                                             </span>
                                             {task.description && (
-                                                <span className="text-sm text-gray-500">{task.description}</span>
+                                                <span className="block text-sm text-gray-500">{task.description}</span>
+                                            )}
+                                            {(task.startDate || task.endDate) && (
+                                                <span className="block text-xs text-gray-500 mt-1">
+                                                    📅 {task.startDate && new Date(task.startDate).toLocaleDateString('ka-GE')}
+                                                    {task.startDate && task.endDate && ' - '}
+                                                    {task.endDate && new Date(task.endDate).toLocaleDateString('ka-GE')}
+                                                </span>
                                             )}
                                         </div>
                                         <span className="text-xs px-3 py-1 bg-purple-100 text-purple-800 rounded-full">
@@ -585,7 +603,9 @@
             const [formData, setFormData] = useState({
                 title: '',
                 description: '',
-                category: 'პირადი'
+                category: 'პირადი',
+                startDate: '',
+                endDate: ''
             });
 
             const categories = ['პირადი', 'საყოფაცხოვრებო', 'სწავლა', 'სპორტი', 'ჯანმრთელობა', 'სამუშაო', 'სხვა'];
@@ -619,6 +639,26 @@
                                     className="w-full border border-gray-300 rounded-lg px-4 py-2 h-20"
                                     placeholder="დამატებითი დეტალები..."
                                 />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">დაწყება</label>
+                                    <input
+                                        type="date"
+                                        value={formData.startDate}
+                                        onChange={(e) => setFormData({...formData, startDate: e.target.value})}
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">დასრულება</label>
+                                    <input
+                                        type="date"
+                                        value={formData.endDate}
+                                        onChange={(e) => setFormData({...formData, endDate: e.target.value})}
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                                    />
+                                </div>
                             </div>
                             <div className="mb-6">
                                 <label className="block text-gray-700 font-medium mb-2">კატეგორია</label>
