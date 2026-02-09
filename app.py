@@ -86,6 +86,8 @@ class Task(db.Model):
     category = db.Column(db.String(100), nullable=False)
     completed = db.Column(db.Boolean, default=False)
     is_backlog = db.Column(db.Boolean, default=False)
+    start_date = db.Column(db.String(20), nullable=True)
+    end_date = db.Column(db.String(20), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     sprint_id = db.Column(db.Integer, db.ForeignKey('sprints.id'), nullable=True)
@@ -99,6 +101,8 @@ class Task(db.Model):
             'completed': self.completed,
             'isBacklog': self.is_backlog,
             'sprintId': self.sprint_id,
+            'startDate': self.start_date,
+            'endDate': self.end_date,
             'createdAt': self.created_at.isoformat()
         }
 
@@ -264,6 +268,8 @@ def create_task():
             category=data['category'],
             is_backlog=data.get('isBacklog', False),
             sprint_id=data.get('sprintId'),
+            start_date=data.get('startDate'),
+            end_date=data.get('endDate'),
             user_id=user_id
         )
         
@@ -296,6 +302,10 @@ def update_task(task_id):
             task.description = data['description']
         if 'category' in data:
             task.category = data['category']
+        if 'startDate' in data:
+            task.start_date = data['startDate']
+        if 'endDate' in data:
+            task.end_date = data['endDate']
         
         db.session.commit()
         
