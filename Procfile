@@ -1,1 +1,1 @@
-web: python -c "from app import init_db; init_db()" && gunicorn app:app
+web: python -c "from app import app, db; app.app_context().push(); db.engine.execute('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_date VARCHAR(20)'); db.engine.execute('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS end_date VARCHAR(20)')" && gunicorn app:app
