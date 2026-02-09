@@ -21,10 +21,8 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // API Configuration - CHANGE THIS TO YOUR RAILWAY URL AFTER DEPLOYMENT
-        const API_URL = window.location.hostname === 'localhost' 
-            ? 'http://localhost:5000/api'
-            : 'https://your-app.railway.app/api';
+        // API Configuration
+        const API_URL = window.location.origin + '/api';
 
         // Auth Helper Functions
         const setToken = (token) => localStorage.setItem('token', token);
