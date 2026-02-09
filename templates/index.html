@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>სპრინტები და დავალებები</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Noto Sans Georgian', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // API Configuration - CHANGE THIS TO YOUR RAILWAY URL AFTER DEPLOYMENT
+        const API_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:5000/api'
+            : 'https://your-app.railway.app/api';
+
+        // Auth Helper Functions
+        const setToken = (token) => localStorage.setItem('token', token);
+        const getToken = () => localStorage.getItem('token');
+        const removeToken = () => localStorage.removeItem('token');
+        const isAuthenticated = () => !!getToken();
+
+        const apiCall = async (endpoint, options = {}) => {
+            const token = getToken();
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(token && { 'Authorization': `Bearer ${token}` }),
+                ...options.headers
+            };
+
+            const response = await fetch(`${API_URL}${endpoint}`, {
+                ...options,
+                headers
+            });
+
+            if (response.status === 401) {
+                removeToken();
+                window.location.reload();
+            }
+
+            return response;
+        };
+
+        // ==================== LOGIN/REGISTER COMPONENT ====================
+        function AuthPage({ onLogin }) {
+            const [isLogin, setIsLogin] = useState(true);
+            const [formData, setFormData] = useState({
+                email: '',
+                password: '',
+                name: ''
+            });
+            const [error, setError] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setError('');
+                setLoading(true);
+
+                try {
+                    const endpoint = isLogin ? '/auth/login' : '/auth/register';
+                    const response = await apiCall(endpoint, {
+                        method: 'POST',
+                        body: JSON.stringify(formData)
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        setError(data.error || 'Something went wrong');
+                        setLoading(false);
+                        return;
+                    }
+
+                    setToken(data.token);
+                    onLogin(data.user);
+                } catch (err) {
+                    setError('Connection error. Please try again.');
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+                        <div className="text-center mb-8">
+                            <h1 className="text-4xl font-bold text-gray-800 mb-2">📋 Remain</h1>
+                            <p className="text-gray-600">სპრინტები და დავალებები</p>
+                        </div>
+
+                        <div className="flex gap-2 mb-6">
+                            <button
+                                onClick={() => { setIsLogin(true); setError(''); }}
+                                className={`flex-1 py-2 rounded-lg font-medium transition ${
+                                    isLogin 
+                                        ? 'bg-indigo-600 text-white' 
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                            >
+                                შესვლა
+                            </button>
+                            <button
+                                onClick={() => { setIsLogin(false); setError(''); }}
+                                className={`flex-1 py-2 rounded-lg font-medium transition ${
+                                    !isLogin 
+                                        ? 'bg-indigo-600 text-white' 
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                            >
+                                რეგისტრაცია
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            {!isLogin && (
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">სახელი</label>
+                                    <input
+                                        type="text"
+                                        required={!isLogin}
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        placeholder="შენი სახელი"
+                                    />
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">ელ. ფოსტა</label>
+                                <input
+                                    type="email"
+                                    required
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    placeholder="example@email.com"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">პაროლი</label>
+                                <input
+                                    type="password"
+                                    required
+                                    value={formData.password}
+                                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    placeholder="••••••••"
+                                />
+                            </div>
+
+                            {error && (
+                                <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">
+                                    {error}
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium transition disabled:opacity-50"
+                            >
+                                {loading ? 'იტვირთება...' : (isLogin ? 'შესვლა' : 'რეგისტრაცია')}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // ==================== MAIN APP COMPONENT ====================
+        function MainApp({ user, onLogout }) {
+            const [sprints, setSprints] = useState([]);
+            const [backlog, setBacklog] = useState([]);
+            const [showSprintForm, setShowSprintForm] = useState(false);
+            const [showTaskForm, setShowTaskForm] = useState(false);
+            const [taskFormType, setTaskFormType] = useState('sprint');
+            const [selectedSprint, setSelectedSprint] = useState(null);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                fetchSprints();
+                fetchBacklog();
+            }, []);
+
+            const fetchSprints = async () => {
+                try {
+                    const response = await apiCall('/sprints');
+                    const data = await response.json();
+                    setSprints(data);
+                } catch (error) {
+                    console.error('Error fetching sprints:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const fetchBacklog = async () => {
+                try {
+                    const response = await apiCall('/backlog');
+                    const data = await response.json();
+                    setBacklog(data);
+                } catch (error) {
+                    console.error('Error fetching backlog:', error);
+                }
+            };
+
+            const addSprint = async (sprintData) => {
+                try {
+                    const response = await apiCall('/sprints', {
+                        method: 'POST',
+                        body: JSON.stringify(sprintData)
+                    });
+                    const newSprint = await response.json();
+                    setSprints([...sprints, newSprint]);
+                    setShowSprintForm(false);
+                } catch (error) {
+                    console.error('Error creating sprint:', error);
+                }
+            };
+
+            const addTask = async (taskData) => {
+                try {
+                    const payload = {
+                        ...taskData,
+                        isBacklog: taskFormType === 'backlog',
+                        sprintId: taskFormType === 'sprint' ? selectedSprint?.id : null
+                    };
+
+                    await apiCall('/tasks', {
+                        method: 'POST',
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (taskFormType === 'sprint') {
+                        await fetchSprints();
+                    } else {
+                        await fetchBacklog();
+                    }
+                    setShowTaskForm(false);
+                } catch (error) {
+                    console.error('Error creating task:', error);
+                }
+            };
+
+            const toggleTaskCompletion = async (taskId, isBacklogTask, sprintId) => {
+                try {
+                    const task = isBacklogTask 
+                        ? backlog.find(t => t.id === taskId)
+                        : sprints.find(s => s.id === sprintId)?.tasks.find(t => t.id === taskId);
+
+                    await apiCall(`/tasks/${taskId}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ completed: !task.completed })
+                    });
+
+                    if (isBacklogTask) {
+                        await fetchBacklog();
+                    } else {
+                        await fetchSprints();
+                    }
+                } catch (error) {
+                    console.error('Error updating task:', error);
+                }
+            };
+
+            const deleteTask = async (taskId, isBacklogTask) => {
+                try {
+                    await apiCall(`/tasks/${taskId}`, { method: 'DELETE' });
+
+                    if (isBacklogTask) {
+                        await fetchBacklog();
+                    } else {
+                        await fetchSprints();
+                    }
+                } catch (error) {
+                    console.error('Error deleting task:', error);
+                }
+            };
+
+            const deleteSprint = async (sprintId) => {
+                if (confirm('დარწმუნებული ხართ რომ გსურთ სპრინტის წაშლა?')) {
+                    try {
+                        await apiCall(`/sprints/${sprintId}`, { method: 'DELETE' });
+                        await fetchSprints();
+                    } catch (error) {
+                        console.error('Error deleting sprint:', error);
+                    }
+                }
+            };
+
+            const calculateProgress = (sprint) => {
+                if (sprint.tasks.length === 0) return 0;
+                const completed = sprint.tasks.filter(t => t.completed).length;
+                return Math.round((completed / sprint.tasks.length) * 100);
+            };
+
+            const getDaysRemaining = (endDate) => {
+                const end = new Date(endDate);
+                const today = new Date();
+                const diffTime = end - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return diffDays;
+            };
+
+            if (loading) {
+                return (
+                    <div className="flex items-center justify-center min-h-screen">
+                        <div className="text-2xl text-gray-600">იტვირთება...</div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="container mx-auto p-6 max-w-7xl">
+                    <header className="mb-8 flex justify-between items-center">
+                        <div>
+                            <h1 className="text-4xl font-bold text-gray-800 mb-2">📋 სპრინტები და დავალებები</h1>
+                            <p className="text-gray-600">გამარჯობა, {user.name || user.email}!</p>
+                        </div>
+                        <button
+                            onClick={onLogout}
+                            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition"
+                        >
+                            გასვლა
+                        </button>
+                    </header>
+
+                    {/* Sprints Section */}
+                    <section className="mb-12">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-2xl font-bold text-gray-800">🎯 აქტიური სპრინტები</h2>
+                            <button 
+                                onClick={() => setShowSprintForm(true)}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition"
+                            >
+                                + ახალი სპრინტი
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {sprints.map(sprint => {
+                                const progress = calculateProgress(sprint);
+                                const daysLeft = getDaysRemaining(sprint.endDate);
+                                
+                                return (
+                                    <div key={sprint.id} className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <h3 className="text-xl font-bold text-gray-800 mb-1">{sprint.name}</h3>
+                                                <p className="text-sm text-gray-600">
+                                                    {new Date(sprint.startDate).toLocaleDateString('ka-GE')} - {new Date(sprint.endDate).toLocaleDateString('ka-GE')}
+                                                </p>
+                                            </div>
+                                            <button 
+                                                onClick={() => deleteSprint(sprint.id)}
+                                                className="text-red-500 hover:text-red-700"
+                                            >
+                                                🗑️
+                                            </button>
+                                        </div>
+
+                                        <div className="mb-4">
+                                            <div className="flex justify-between text-sm mb-1">
+                                                <span className="text-gray-600">პროგრესი</span>
+                                                <span className="font-bold text-indigo-600">{progress}%</span>
+                                            </div>
+                                            <div className="w-full bg-gray-200 rounded-full h-2">
+                                                <div 
+                                                    className="bg-indigo-600 h-2 rounded-full transition-all"
+                                                    style={{ width: `${progress}%` }}
+                                                ></div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-2 mb-4">
+                                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                                daysLeft > 7 ? 'bg-green-100 text-green-800' :
+                                                daysLeft > 3 ? 'bg-yellow-100 text-yellow-800' :
+                                                'bg-red-100 text-red-800'
+                                            }`}>
+                                                {daysLeft > 0 ? `${daysLeft} დღე დარჩა` : 'დასრულებულია'}
+                                            </span>
+                                            <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                                                {sprint.tasks.length} დავალება
+                                            </span>
+                                        </div>
+
+                                        <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
+                                            {sprint.tasks.map(task => (
+                                                <div key={task.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={task.completed}
+                                                        onChange={() => toggleTaskCompletion(task.id, false, sprint.id)}
+                                                        className="w-5 h-5 text-indigo-600"
+                                                    />
+                                                    <span className={`flex-1 ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                                                        {task.title}
+                                                    </span>
+                                                    <span className="text-xs px-2 py-1 bg-gray-200 rounded">
+                                                        {task.category}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => deleteTask(task.id, false)}
+                                                        className="text-red-500 hover:text-red-700 text-sm"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <button
+                                            onClick={() => {
+                                                setSelectedSprint(sprint);
+                                                setTaskFormType('sprint');
+                                                setShowTaskForm(true);
+                                            }}
+                                            className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-600 py-2 rounded-lg font-medium transition"
+                                        >
+                                            + დავალების დამატება
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+
+                    {/* Backlog Section */}
+                    <section>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-2xl font-bold text-gray-800">📌 საერთო სია (ბექლოგი)</h2>
+                            <button 
+                                onClick={() => {
+                                    setTaskFormType('backlog');
+                                    setShowTaskForm(true);
+                                }}
+                                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition"
+                            >
+                                + ახალი დავალება
+                            </button>
+                        </div>
+
+                        <div className="bg-white rounded-xl shadow-lg p-6">
+                            <div className="space-y-2">
+                                {backlog.map(task => (
+                                    <div key={task.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                                        <input
+                                            type="checkbox"
+                                            checked={task.completed}
+                                            onChange={() => toggleTaskCompletion(task.id, true)}
+                                            className="w-5 h-5 text-purple-600"
+                                        />
+                                        <div className="flex-1">
+                                            <span className={`block ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                                                {task.title}
+                                            </span>
+                                            {task.description && (
+                                                <span className="text-sm text-gray-500">{task.description}</span>
+                                            )}
+                                        </div>
+                                        <span className="text-xs px-3 py-1 bg-purple-100 text-purple-800 rounded-full">
+                                            {task.category}
+                                        </span>
+                                        <button
+                                            onClick={() => deleteTask(task.id, true)}
+                                            className="text-red-500 hover:text-red-700"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                ))}
+                                {backlog.length === 0 && (
+                                    <p className="text-gray-500 text-center py-8">
+                                        ბექლოგი ცარიელია. დაამატე რაიმე რაც მოგვიანებით გინდა გააკეთო!
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+
+                    {showSprintForm && (
+                        <SprintForm 
+                            onSubmit={addSprint}
+                            onClose={() => setShowSprintForm(false)}
+                        />
+                    )}
+
+                    {showTaskForm && (
+                        <TaskForm 
+                            onSubmit={addTask}
+                            onClose={() => setShowTaskForm(false)}
+                            type={taskFormType}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        // ==================== FORM COMPONENTS ====================
+        function SprintForm({ onSubmit, onClose }) {
+            const [formData, setFormData] = useState({
+                name: '',
+                startDate: new Date().toISOString().split('T')[0],
+                endDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            });
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSubmit(formData);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-xl p-6 max-w-md w-full">
+                        <h3 className="text-2xl font-bold mb-4">ახალი სპრინტი</h3>
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-4">
+                                <label className="block text-gray-700 font-medium mb-2">სპრინტის სახელი</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                                    placeholder="მაგ: თებერვალი - მარტი 2026"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 mb-6">
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">დაწყება</label>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={formData.startDate}
+                                        onChange={(e) => setFormData({...formData, startDate: e.target.value})}
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">დასრულება</label>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={formData.endDate}
+                                        onChange={(e) => setFormData({...formData, endDate: e.target.value})}
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg font-medium"
+                                >
+                                    გაუქმება
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-medium"
+                                >
+                                    შექმნა
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        function TaskForm({ onSubmit, onClose, type }) {
+            const [formData, setFormData] = useState({
+                title: '',
+                description: '',
+                category: 'პირადი'
+            });
+
+            const categories = ['პირადი', 'საყოფაცხოვრებო', 'სწავლა', 'სპორტი', 'ჯანმრთელობა', 'სამუშაო', 'სხვა'];
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSubmit(formData);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-xl p-6 max-w-md w-full">
+                        <h3 className="text-2xl font-bold mb-4">ახალი დავალება</h3>
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-4">
+                                <label className="block text-gray-700 font-medium mb-2">დავალება</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={formData.title}
+                                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                                    placeholder="მაგ: 100 ახალი სიტყვის სწავლა"
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700 font-medium mb-2">აღწერა (არასავალდებულო)</label>
+                                <textarea
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2 h-20"
+                                    placeholder="დამატებითი დეტალები..."
+                                />
+                            </div>
+                            <div className="mb-6">
+                                <label className="block text-gray-700 font-medium mb-2">კატეგორია</label>
+                                <select
+                                    value={formData.category}
+                                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                                >
+                                    {categories.map(cat => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg font-medium"
+                                >
+                                    გაუქმება
+                                </button>
+                                <button
+                                    type="submit"
+                                    className={`flex-1 ${type === 'sprint' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-purple-600 hover:bg-purple-700'} text-white py-2 rounded-lg font-medium`}
+                                >
+                                    დამატება
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // ==================== ROOT APP ====================
+        function App() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                checkAuth();
+            }, []);
+
+            const checkAuth = async () => {
+                if (!isAuthenticated()) {
+                    setLoading(false);
+                    return;
+                }
+
+                try {
+                    const response = await apiCall('/auth/me');
+                    const data = await response.json();
+                    setUser(data);
+                } catch (error) {
+                    removeToken();
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleLogin = (userData) => {
+                setUser(userData);
+            };
+
+            const handleLogout = () => {
+                removeToken();
+                setUser(null);
+            };
+
+            if (loading) {
+                return (
+                    <div className="flex items-center justify-center min-h-screen">
+                        <div className="text-2xl text-gray-600">იტვირთება...</div>
+                    </div>
+                );
+            }
+
+            return user ? (
+                <MainApp user={user} onLogout={handleLogout} />
+            ) : (
+                <AuthPage onLogin={handleLogin} />
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
