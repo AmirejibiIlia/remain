@@ -14,12 +14,15 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgres
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-change-in-production')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
+app.config['JWT_TOKEN_LOCATION'] = ['headers']
+app.config['JWT_HEADER_NAME'] = 'Authorization'
+app.config['JWT_HEADER_TYPE'] = 'Bearer'
 
 # Fix for Railway PostgreSQL URL
 if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
     app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace('postgres://', 'postgresql://', 1)
 
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
@@ -109,191 +112,241 @@ def index():
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
-    data = request.json
-    
-    # Validation
-    if not data.get('email') or not data.get('password'):
-        return jsonify({'error': 'Email and password are required'}), 400
-    
-    # Check if user exists
-    if User.query.filter_by(email=data['email']).first():
-        return jsonify({'error': 'Email already registered'}), 400
-    
-    # Create user
-    user = User(
-        email=data['email'],
-        name=data.get('name', '')
-    )
-    user.set_password(data['password'])
-    
-    db.session.add(user)
-    db.session.commit()
-    
-    # Create access token
-    access_token = create_access_token(identity=user.id)
-    
-    return jsonify({
-        'token': access_token,
-        'user': user.to_dict()
-    }), 201
+    try:
+        data = request.json
+        
+        # Validation
+        if not data.get('email') or not data.get('password'):
+            return jsonify({'error': 'Email and password are required'}), 400
+        
+        # Check if user exists
+        if User.query.filter_by(email=data['email']).first():
+            return jsonify({'error': 'Email already registered'}), 400
+        
+        # Create user
+        user = User(
+            email=data['email'],
+            name=data.get('name', '')
+        )
+        user.set_password(data['password'])
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        # Create access token
+        access_token = create_access_token(identity=str(user.id))
+        
+        return jsonify({
+            'token': access_token,
+            'user': user.to_dict()
+        }), 201
+    except Exception as e:
+        print(f"Registration error: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Registration failed'}), 500
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    data = request.json
-    
-    if not data.get('email') or not data.get('password'):
-        return jsonify({'error': 'Email and password are required'}), 400
-    
-    user = User.query.filter_by(email=data['email']).first()
-    
-    if not user or not user.check_password(data['password']):
-        return jsonify({'error': 'Invalid email or password'}), 401
-    
-    access_token = create_access_token(identity=user.id)
-    
-    return jsonify({
-        'token': access_token,
-        'user': user.to_dict()
-    }), 200
+    try:
+        data = request.json
+        
+        if not data.get('email') or not data.get('password'):
+            return jsonify({'error': 'Email and password are required'}), 400
+        
+        user = User.query.filter_by(email=data['email']).first()
+        
+        if not user or not user.check_password(data['password']):
+            return jsonify({'error': 'Invalid email or password'}), 401
+        
+        access_token = create_access_token(identity=str(user.id))
+        
+        return jsonify({
+            'token': access_token,
+            'user': user.to_dict()
+        }), 200
+    except Exception as e:
+        print(f"Login error: {e}")
+        return jsonify({'error': 'Login failed'}), 500
 
 @app.route('/api/auth/me', methods=['GET'])
 @jwt_required()
 def get_current_user():
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
-    
-    return jsonify(user.to_dict()), 200
+    try:
+        user_id = int(get_jwt_identity())
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        return jsonify(user.to_dict()), 200
+    except Exception as e:
+        print(f"Get user error: {e}")
+        return jsonify({'error': 'Authentication failed'}), 401
 
 # ==================== SPRINT ROUTES ====================
 
 @app.route('/api/sprints', methods=['GET'])
 @jwt_required()
 def get_sprints():
-    user_id = get_jwt_identity()
-    sprints = Sprint.query.filter_by(user_id=user_id).order_by(Sprint.created_at.desc()).all()
-    return jsonify([sprint.to_dict() for sprint in sprints]), 200
+    try:
+        user_id = int(get_jwt_identity())
+        sprints = Sprint.query.filter_by(user_id=user_id).order_by(Sprint.created_at.desc()).all()
+        return jsonify([sprint.to_dict() for sprint in sprints]), 200
+    except Exception as e:
+        print(f"Get sprints error: {e}")
+        return jsonify({'error': 'Failed to fetch sprints'}), 500
 
 @app.route('/api/sprints', methods=['POST'])
 @jwt_required()
 def create_sprint():
-    user_id = get_jwt_identity()
-    data = request.json
-    
-    sprint = Sprint(
-        name=data['name'],
-        start_date=data['startDate'],
-        end_date=data['endDate'],
-        user_id=user_id
-    )
-    
-    db.session.add(sprint)
-    db.session.commit()
-    
-    return jsonify(sprint.to_dict()), 201
+    try:
+        user_id = int(get_jwt_identity())
+        data = request.json
+        
+        sprint = Sprint(
+            name=data['name'],
+            start_date=data['startDate'],
+            end_date=data['endDate'],
+            user_id=user_id
+        )
+        
+        db.session.add(sprint)
+        db.session.commit()
+        
+        return jsonify(sprint.to_dict()), 201
+    except Exception as e:
+        print(f"Create sprint error: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to create sprint'}), 500
 
 @app.route('/api/sprints/<int:sprint_id>', methods=['DELETE'])
 @jwt_required()
 def delete_sprint(sprint_id):
-    user_id = get_jwt_identity()
-    sprint = Sprint.query.filter_by(id=sprint_id, user_id=user_id).first()
-    
-    if not sprint:
-        return jsonify({'error': 'Sprint not found'}), 404
-    
-    db.session.delete(sprint)
-    db.session.commit()
-    
-    return '', 204
+    try:
+        user_id = int(get_jwt_identity())
+        sprint = Sprint.query.filter_by(id=sprint_id, user_id=user_id).first()
+        
+        if not sprint:
+            return jsonify({'error': 'Sprint not found'}), 404
+        
+        db.session.delete(sprint)
+        db.session.commit()
+        
+        return '', 204
+    except Exception as e:
+        print(f"Delete sprint error: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to delete sprint'}), 500
 
 # ==================== TASK ROUTES ====================
 
 @app.route('/api/backlog', methods=['GET'])
 @jwt_required()
 def get_backlog():
-    user_id = get_jwt_identity()
-    tasks = Task.query.filter_by(user_id=user_id, is_backlog=True).order_by(Task.created_at).all()
-    return jsonify([task.to_dict() for task in tasks]), 200
+    try:
+        user_id = int(get_jwt_identity())
+        tasks = Task.query.filter_by(user_id=user_id, is_backlog=True).order_by(Task.created_at).all()
+        return jsonify([task.to_dict() for task in tasks]), 200
+    except Exception as e:
+        print(f"Get backlog error: {e}")
+        return jsonify({'error': 'Failed to fetch backlog'}), 500
 
 @app.route('/api/tasks', methods=['POST'])
 @jwt_required()
 def create_task():
-    user_id = get_jwt_identity()
-    data = request.json
-    
-    task = Task(
-        title=data['title'],
-        description=data.get('description', ''),
-        category=data['category'],
-        is_backlog=data.get('isBacklog', False),
-        sprint_id=data.get('sprintId'),
-        user_id=user_id
-    )
-    
-    db.session.add(task)
-    db.session.commit()
-    
-    return jsonify(task.to_dict()), 201
+    try:
+        user_id = int(get_jwt_identity())
+        data = request.json
+        
+        task = Task(
+            title=data['title'],
+            description=data.get('description', ''),
+            category=data['category'],
+            is_backlog=data.get('isBacklog', False),
+            sprint_id=data.get('sprintId'),
+            user_id=user_id
+        )
+        
+        db.session.add(task)
+        db.session.commit()
+        
+        return jsonify(task.to_dict()), 201
+    except Exception as e:
+        print(f"Create task error: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to create task'}), 500
 
 @app.route('/api/tasks/<int:task_id>', methods=['PATCH'])
 @jwt_required()
 def update_task(task_id):
-    user_id = get_jwt_identity()
-    task = Task.query.filter_by(id=task_id, user_id=user_id).first()
-    
-    if not task:
-        return jsonify({'error': 'Task not found'}), 404
-    
-    data = request.json
-    
-    if 'completed' in data:
-        task.completed = data['completed']
-    if 'title' in data:
-        task.title = data['title']
-    if 'description' in data:
-        task.description = data['description']
-    if 'category' in data:
-        task.category = data['category']
-    
-    db.session.commit()
-    
-    return jsonify(task.to_dict()), 200
+    try:
+        user_id = int(get_jwt_identity())
+        task = Task.query.filter_by(id=task_id, user_id=user_id).first()
+        
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
+        
+        data = request.json
+        
+        if 'completed' in data:
+            task.completed = data['completed']
+        if 'title' in data:
+            task.title = data['title']
+        if 'description' in data:
+            task.description = data['description']
+        if 'category' in data:
+            task.category = data['category']
+        
+        db.session.commit()
+        
+        return jsonify(task.to_dict()), 200
+    except Exception as e:
+        print(f"Update task error: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to update task'}), 500
 
 @app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
 @jwt_required()
 def delete_task(task_id):
-    user_id = get_jwt_identity()
-    task = Task.query.filter_by(id=task_id, user_id=user_id).first()
-    
-    if not task:
-        return jsonify({'error': 'Task not found'}), 404
-    
-    db.session.delete(task)
-    db.session.commit()
-    
-    return '', 204
+    try:
+        user_id = int(get_jwt_identity())
+        task = Task.query.filter_by(id=task_id, user_id=user_id).first()
+        
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
+        
+        db.session.delete(task)
+        db.session.commit()
+        
+        return '', 204
+    except Exception as e:
+        print(f"Delete task error: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Failed to delete task'}), 500
 
 # ==================== STATS ROUTES ====================
 
 @app.route('/api/stats', methods=['GET'])
 @jwt_required()
 def get_stats():
-    user_id = get_jwt_identity()
-    
-    total_sprints = Sprint.query.filter_by(user_id=user_id).count()
-    total_tasks = Task.query.filter_by(user_id=user_id, is_backlog=False).count()
-    completed_tasks = Task.query.filter_by(user_id=user_id, is_backlog=False, completed=True).count()
-    backlog_tasks = Task.query.filter_by(user_id=user_id, is_backlog=True).count()
-    
-    return jsonify({
-        'totalSprints': total_sprints,
-        'totalTasks': total_tasks,
-        'completedTasks': completed_tasks,
-        'backlogTasks': backlog_tasks,
-        'completionRate': round((completed_tasks / total_tasks * 100) if total_tasks > 0 else 0, 1)
-    }), 200
+    try:
+        user_id = int(get_jwt_identity())
+        
+        total_sprints = Sprint.query.filter_by(user_id=user_id).count()
+        total_tasks = Task.query.filter_by(user_id=user_id, is_backlog=False).count()
+        completed_tasks = Task.query.filter_by(user_id=user_id, is_backlog=False, completed=True).count()
+        backlog_tasks = Task.query.filter_by(user_id=user_id, is_backlog=True).count()
+        
+        return jsonify({
+            'totalSprints': total_sprints,
+            'totalTasks': total_tasks,
+            'completedTasks': completed_tasks,
+            'backlogTasks': backlog_tasks,
+            'completionRate': round((completed_tasks / total_tasks * 100) if total_tasks > 0 else 0, 1)
+        }), 200
+    except Exception as e:
+        print(f"Get stats error: {e}")
+        return jsonify({'error': 'Failed to fetch stats'}), 500
 
 # ==================== HEALTH CHECK ====================
 
